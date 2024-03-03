@@ -25,54 +25,34 @@ fi
 # $1                 $2       $3    $4
 by_username() {
     # výpis záznamů pro daného uživatele
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
-    BEGIN {
-        split(CURRENCY,arr," ")
-    }
-    {
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
         if(USERNAME == $1) {
             if(AFTER && $2 <= AFTER) next
             if(BEFORE && $2 >= BEFORE) next
-            for (i in arr) {
-                if(arr[i] == $3) print $0
-            }
-            if(!length(arr)) print $0
+            if(CURRENCY && $3 != CURRENCY) next
+            print $0
         }
     }'
 }
 uniq_currency() {
     # výpis seřazeného seznamu vyskytujících se měn
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
-    BEGIN {
-        split(CURRENCY,arr," ")
-    }
-    {
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
         if(USERNAME == $1) {
             if(AFTER && $2 <= AFTER) next
             if(BEFORE && $2 >= BEFORE) next
-            for (i in arr) {
-                if(arr[i] == $3) print $3
-            }
-            if(!length(arr)) print $3
+            if(CURRENCY && $3 != CURRENCY) next
+            print $3
         }
-    }
-    ' | sort | uniq
+    }' | sort | uniq
 }
 status() {
     # výpis skutečného stavu účtu seskupeného a seřazeného dle jednotlivých měn
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
-    BEGIN {
-        split(CURRENCY,arr," ")
-    }
-    {
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
     if(USERNAME == $1) {
         if(AFTER && $2 <= AFTER) next
         if(BEFORE && $2 >= BEFORE) next
-        
-        for (i in arr) {
-            if(arr[i] == $3) meny[$3] += $4
-        }
-        if(!length(arr)) meny[$3] += $4
+        if(CURRENCY && $3 != CURRENCY) next
+        meny[$3] += $4
     }
     } END {
         for (mena in meny) printf "%s : %.4f\n", mena, meny[mena]
@@ -83,19 +63,12 @@ profit() {
     if [ ! "$XTF_PROFIT" ]; then
         XTF_PROFIT=20
     fi
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v XTF_PROFIT="$XTF_PROFIT" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
-    BEGIN {
-        split(CURRENCY,arr," ")
-    }
-    {
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v XTF_PROFIT="$XTF_PROFIT" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
     if(USERNAME == $1) {
         if(AFTER && $2 <= AFTER) next
         if(BEFORE && $2 >= BEFORE) next
-
-        for (i in arr) {
-            if(arr[i] == $3) meny[$3] += $4
-        }
-        if(!length(arr)) meny[$3] += $4
+        if(CURRENCY && $3 != CURRENCY) next
+        meny[$3] += $4
     }
     } END {
         for (mena in meny) {
@@ -107,6 +80,13 @@ profit() {
     }' | sort
 }
 
+check_if_datetime_is_valid() {
+    # check if date is valid in format 2024-01-25 15:29:29
+    if ! date -d "$1" "+%Y-%m-%d %H:%M:%S" >/dev/null 2>&1; then
+        echo "$1 is not a valid date"
+        exit 1
+    fi
+}
 if [ "$1" ] && [ "$2" ]; then
     # default username pos
     USERNAME="$1"
@@ -116,6 +96,7 @@ if [ "$1" ] && [ "$2" ]; then
         if [ "${!i}" == "-a" ]; then
             ((i++))
             AFTER="${!i}"
+            check_if_datetime_is_valid "$AFTER"
             NEXT=$((i + 1))
             USERNAME="${!NEXT}"
             continue
@@ -123,13 +104,14 @@ if [ "$1" ] && [ "$2" ]; then
         if [ "${!i}" == "-b" ]; then
             ((i++))
             BEFORE="${!i}"
+            check_if_datetime_is_valid "$BEFORE"
             NEXT=$((i + 1))
             USERNAME="${!NEXT}"
             continue
         fi
         if [ "${!i}" == "-c" ]; then
             ((i++))
-            CURRENCY+=("${!i}")
+            CURRENCY="${!i}"
             NEXT=$((i + 1))
             USERNAME="${!NEXT}"
             continue
@@ -147,21 +129,25 @@ if [ "$1" ] && [ "$2" ]; then
         fi
     done
     # foreach file in files
-    for file in "${files[@]}"; do
-        if [ ! -f $file ]; then
-            echo "File $file does not exist!"
-            exit 1
-        fi
-        # gz
-        if [[ $file == *.gz ]]; then
-            TEXT_FROM_FILES+=$(gunzip -ck $file)
+    for item in "${files[@]}"; do
+        # Check if item is a file
+        if [ -f "$item" ]; then
+            # gz
+            if [[ "$item" == *.gz ]]; then
+                TEXT_FROM_FILES+=$(gunzip -ck $item)
+                TEXT_FROM_FILES+=$'\n'
+                continue
+            fi
+            # normal
+            TEXT_FROM_FILES+=$(cat $item)
             TEXT_FROM_FILES+=$'\n'
             continue
         fi
-        # normal
-        TEXT_FROM_FILES+=$(cat $file)
-        TEXT_FROM_FILES+=$'\n'
+        # not a file
+        echo "$item is not a file"
+        exit 1
     done
+
     # shift if filter is set
     if [ "$AFTER" ]; then
         shift 2
@@ -170,8 +156,7 @@ if [ "$1" ] && [ "$2" ]; then
         shift 2
     fi
     if [ "$CURRENCY" ]; then
-        SHIFT_BY=$((${#CURRENCY[@]} * 2)) # 2x -c a hodnota za ním (# pocet prvnku v poli)
-        shift $SHIFT_BY
+        shift 2
     fi
 
     if [ "$1" == "list" ]; then
