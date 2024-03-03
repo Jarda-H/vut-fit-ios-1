@@ -1,0 +1,200 @@
+#!/bin/bash
+POSIXLY_CORRECT=yes
+# 0 args
+if [ "$#" == 0 ]; then
+    echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
+    exit 1
+fi
+
+# první arg je -h or --help
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
+    echo "PŘÍKAZ může být jeden z:"
+    echo "list – výpis záznamů pro daného uživatele."
+    echo "list-currency – výpis seřazeného seznamu vyskytujících se měn."
+    echo "status – výpis skutečného stavu účtu seskupeného a seřazeného dle jednotlivých měn."
+    echo "profit – výpis stavu účtu zákazníka se započítaným fiktivním výnosem."
+    echo "FILTR může být kombinace následujících:"
+    echo "-a DATETIME – after: jsou uvažovány pouze záznamy PO tomto datu a čase (bez něj). DATETIME je formátu YYYY-MM-DD HH:MM:SS."
+    echo "-b DATETIME – before: jsou uvažovány pouze záznamy PŘED tímto datem a časem (bez něj)."
+    echo "-c CURRENCY – jsou uvažovány pouze záznamy odpovídající dané měně."
+    echo "-h a --help vypíšou nápovědu s krátkým popisem každého příkazu a přepínače."
+    exit 0
+fi
+#JMENO UZIVATELE;DATUM A CAS;MENA;HODNOTA
+# $1                 $2       $3    $4
+by_username() {
+    # výpis záznamů pro daného uživatele
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+    BEGIN {
+        split(CURRENCY,arr," ")
+    }
+    {
+        if(USERNAME == $1) {
+            if(AFTER && $2 <= AFTER) next
+            if(BEFORE && $2 >= BEFORE) next
+            for (i in arr) {
+                if(arr[i] == $3) print $0
+            }
+            if(!length(arr)) print $0
+        }
+    }'
+}
+uniq_currency() {
+    # výpis seřazeného seznamu vyskytujících se měn
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+    BEGIN {
+        split(CURRENCY,arr," ")
+    }
+    {
+        if(USERNAME == $1) {
+            if(AFTER && $2 <= AFTER) next
+            if(BEFORE && $2 >= BEFORE) next
+            for (i in arr) {
+                if(arr[i] == $3) print $3
+            }
+            if(!length(arr)) print $3
+        }
+    }
+    ' | sort | uniq
+}
+status() {
+    # výpis skutečného stavu účtu seskupeného a seřazeného dle jednotlivých měn
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+    BEGIN {
+        split(CURRENCY,arr," ")
+    }
+    {
+    if(USERNAME == $1) {
+        if(AFTER && $2 <= AFTER) next
+        if(BEFORE && $2 >= BEFORE) next
+        
+        for (i in arr) {
+            if(arr[i] == $3) meny[$3] += $4
+        }
+        if(!length(arr)) meny[$3] += $4
+    }
+    } END {
+        for (mena in meny) printf "%s : %.4f\n", mena, meny[mena]
+    }' | sort
+}
+profit() {
+    # výpis stavu účtu zákazníka se započítaným fiktivním výnosem
+    if [ ! "$XTF_PROFIT" ]; then
+        XTF_PROFIT=20
+    fi
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v XTF_PROFIT="$XTF_PROFIT" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+    BEGIN {
+        split(CURRENCY,arr," ")
+    }
+    {
+    if(USERNAME == $1) {
+        if(AFTER && $2 <= AFTER) next
+        if(BEFORE && $2 >= BEFORE) next
+
+        for (i in arr) {
+            if(arr[i] == $3) meny[$3] += $4
+        }
+        if(!length(arr)) meny[$3] += $4
+    }
+    } END {
+        for (mena in meny) {
+            if(meny[mena] > 0) {
+                meny[mena] = meny[mena] * ( (XTF_PROFIT / 100) + 1)
+            }
+            printf "%s : %.4f\n", mena, meny[mena]
+        }
+    }' | sort
+}
+
+if [ "$1" ] && [ "$2" ]; then
+    # default username pos
+    USERNAME="$1"
+    # get file start positions
+    for ((i = 1; i <= $#; i++)); do
+        # is filter preset
+        if [ "${!i}" == "-a" ]; then
+            ((i++))
+            AFTER="${!i}"
+            NEXT=$((i + 1))
+            USERNAME="${!NEXT}"
+            continue
+        fi
+        if [ "${!i}" == "-b" ]; then
+            ((i++))
+            BEFORE="${!i}"
+            NEXT=$((i + 1))
+            USERNAME="${!NEXT}"
+            continue
+        fi
+        if [ "${!i}" == "-c" ]; then
+            ((i++))
+            CURRENCY+=("${!i}")
+            NEXT=$((i + 1))
+            USERNAME="${!NEXT}"
+            continue
+        fi
+        if [ "${!i}" == "list" ] ||
+            [ "${!i}" == "list-currency" ] ||
+            [ "${!i}" == "status" ] ||
+            [ "${!i}" == "profit" ]; then
+            ((i++))
+            USERNAME="${!i}"
+            continue
+        fi
+        if [ "${!i}" != "$USERNAME" ]; then
+            files[$i]="${!i}"
+        fi
+    done
+    # foreach file in files
+    for file in "${files[@]}"; do
+        if [ ! -f $file ]; then
+            echo "File $file does not exist!"
+            exit 1
+        fi
+        # gz
+        if [[ $file == *.gz ]]; then
+            TEXT_FROM_FILES+=$(gunzip -ck $file)
+            TEXT_FROM_FILES+=$'\n'
+            continue
+        fi
+        # normal
+        TEXT_FROM_FILES+=$(cat $file)
+        TEXT_FROM_FILES+=$'\n'
+    done
+    # shift if filter is set
+    if [ "$AFTER" ]; then
+        shift 2
+    fi
+    if [ "$BEFORE" ]; then
+        shift 2
+    fi
+    if [ "$CURRENCY" ]; then
+        SHIFT_BY=$((${#CURRENCY[@]} * 2)) # 2x -c a hodnota za ním (# pocet prvnku v poli)
+        shift $SHIFT_BY
+    fi
+
+    if [ "$1" == "list" ]; then
+        by_username
+        exit 0
+    fi
+    if [ "$1" == "list-currency" ]; then
+        uniq_currency
+        exit 0
+    fi
+    if [ "$1" == "status" ]; then
+        status
+        exit 0
+    fi
+    if [ "$1" == "profit" ]; then
+        profit
+        exit 0
+    fi
+    # default
+    by_username
+    exit 0
+fi
+
+# Pokud skript nedostane na vstupu žádný příkaz, uvažujte výchozí příkaz list.
+echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
+exit 0
