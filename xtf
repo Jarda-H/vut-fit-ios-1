@@ -1,8 +1,14 @@
 #!/bin/bash
 POSIXLY_CORRECT=yes
+usage_help() {
+    if [ "$1" ]; then
+        echo "$1"
+    fi
+    echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
+}
 # 0 args
 if [ "$#" == 0 ]; then
-    echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
+    usage_help
     exit 1
 fi
 
@@ -25,33 +31,69 @@ fi
 # $1                 $2       $3    $4
 by_username() {
     # výpis záznamů pro daného uživatele
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+    BEGIN{
+    if(CURRENCY != "") split(CURRENCY, arr, " ")
+    } {
         if(USERNAME == $1) {
             if(AFTER && $2 <= AFTER) next
             if(BEFORE && $2 >= BEFORE) next
-            if(CURRENCY && $3 != CURRENCY) next
+        if(CURRENCY != "") {
+            found = 0
+            for(i in arr) {
+                if(arr[i] == $3) {
+                    found = 1
+                    break
+                }
+            }
+            if(!found) next
+        }
             print $0
         }
     }'
 }
 uniq_currency() {
     # výpis seřazeného seznamu vyskytujících se měn
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
-        if(USERNAME == $1) {
-            if(AFTER && $2 <= AFTER) next
-            if(BEFORE && $2 >= BEFORE) next
-            if(CURRENCY && $3 != CURRENCY) next
-            print $3
-        }
-    }' | sort | uniq
-}
-status() {
-    # výpis skutečného stavu účtu seskupeného a seřazeného dle jednotlivých měn
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+    BEGIN{
+    if(CURRENCY != "") split(CURRENCY, arr, " ")
+    } {
     if(USERNAME == $1) {
         if(AFTER && $2 <= AFTER) next
         if(BEFORE && $2 >= BEFORE) next
-        if(CURRENCY && $3 != CURRENCY) next
+        if(CURRENCY != "") {
+            found = 0
+            for(i in arr) {
+                if(arr[i] == $3) {
+                    found = 1
+                    break
+                }
+            }
+            if(!found) next
+        }
+        print $3
+    }
+}' | sort | uniq
+}
+status() {
+    # výpis skutečného stavu účtu seskupeného a seřazeného dle jednotlivých měn
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+        BEGIN{
+    if(CURRENCY != "") split(CURRENCY, arr, " ")
+    } {
+    if(USERNAME == $1) {
+        if(AFTER && $2 <= AFTER) next
+        if(BEFORE && $2 >= BEFORE) next
+        if(CURRENCY != "") {
+            found = 0
+            for(i in arr) {
+                if(arr[i] == $3) {
+                    found = 1
+                    break
+                }
+            }
+            if(!found) next
+        }
         meny[$3] += $4
     }
     } END {
@@ -63,11 +105,23 @@ profit() {
     if [ ! "$XTF_PROFIT" ]; then
         XTF_PROFIT=20
     fi
-    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v XTF_PROFIT="$XTF_PROFIT" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="$CURRENCY" '{
+    echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v XTF_PROFIT="$XTF_PROFIT" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
+            BEGIN{
+    if(CURRENCY != "") split(CURRENCY, arr, " ")
+    } {
     if(USERNAME == $1) {
         if(AFTER && $2 <= AFTER) next
         if(BEFORE && $2 >= BEFORE) next
-        if(CURRENCY && $3 != CURRENCY) next
+        if(CURRENCY != "") {
+            found = 0
+            for(i in arr) {
+                if(arr[i] == $3) {
+                    found = 1
+                    break
+                }
+            }
+            if(!found) next
+        }
         meny[$3] += $4
     }
     } END {
@@ -83,50 +137,101 @@ profit() {
 check_if_datetime_is_valid() {
     # check if date is valid in format 2024-01-25 15:29:29
     if ! date -d "$1" "+%Y-%m-%d %H:%M:%S" >/dev/null 2>&1; then
-        echo "$1 is not a valid date"
+        usage_help "$1 is not a valid date"
         exit 1
     fi
 }
+#read args
+while getopts "a:b:c:" opt; do
+    case $opt in
+    a)
+        AFTER="$OPTARG"
+        check_if_datetime_is_valid "$AFTER"
+        ;;
+    b)
+        BEFORE="$OPTARG"
+        check_if_datetime_is_valid "$BEFORE"
+        ;;
+    c)
+        #3 dig
+        if [ ${#OPTARG} != 3 ]; then
+            usage_help "$OPTARG is not a valid currency"
+            exit 1
+        fi
+        CURRENCY+=("$OPTARG")
+        ;;
+    *)
+        usage_help
+        exit 1
+        ;;
+    esac
+done
+shift "$((OPTIND - 1))"
+# write out after the shift
 if [ "$1" ] && [ "$2" ]; then
-    # default username pos
-    USERNAME="$1"
-    # get file start positions
-    for ((i = 1; i <= $#; i++)); do
-        # is filter preset
-        if [ "${!i}" == "-a" ]; then
-            ((i++))
-            AFTER="${!i}"
+    #example: ./xtf "Trader1" "status" "-a" "2024-01-15 16:00:00" "-b" "2024-01-22 09:17:41" "cryptoexchange.log"
+    # trader or status shoule be here
+    # 2 can be a log -> UŽIVATEL LOG [LOG2 [...]
+    case "$1" in
+    list | list-currency | status | profit)
+        # list-currency Trader1
+        CMD="$1"
+        USERNAME="$2"
+        shift 2
+        ;;
+    *)
+        USERNAME="$1"
+        shift 1
+        case "$1" in
+        list | list-currency | status | profit)
+            CMD="$1"
+            shift 1
+            ;;
+        esac
+        ;;
+    esac
+    # if user or cmd is not set
+    if [ ! "$USERNAME" ]; then
+        usage_help
+        exit 1
+    fi
+
+    # read and remove args
+    OPTIND=1
+    while getopts "a:b:c:" opt; do
+        case $opt in
+        a)
+            AFTER="$OPTARG"
             check_if_datetime_is_valid "$AFTER"
-            NEXT=$((i + 1))
-            USERNAME="${!NEXT}"
-            continue
-        fi
-        if [ "${!i}" == "-b" ]; then
-            ((i++))
-            BEFORE="${!i}"
+            ;;
+        b)
+            BEFORE="$OPTARG"
             check_if_datetime_is_valid "$BEFORE"
-            NEXT=$((i + 1))
-            USERNAME="${!NEXT}"
-            continue
-        fi
-        if [ "${!i}" == "-c" ]; then
-            ((i++))
-            CURRENCY="${!i}"
-            NEXT=$((i + 1))
-            USERNAME="${!NEXT}"
-            continue
-        fi
-        if [ "${!i}" == "list" ] ||
-            [ "${!i}" == "list-currency" ] ||
-            [ "${!i}" == "status" ] ||
-            [ "${!i}" == "profit" ]; then
-            ((i++))
-            USERNAME="${!i}"
-            continue
-        fi
-        if [ "${!i}" != "$USERNAME" ]; then
-            files[$i]="${!i}"
-        fi
+            ;;
+        c)
+            #3 dig
+            if [ ${#OPTARG} != 3 ]; then
+                usage_help "$OPTARG is not a valid currency"
+                exit 1
+            fi
+            CURRENCY+=("$OPTARG")
+            ;;
+        *)
+            usage_help
+            exit 1
+            ;;
+        esac
+    done
+    shift "$((OPTIND - 1))"
+    # for every other argument, set it as a file
+    files=()
+    for arg in "$@"; do
+        # already in files
+        # if [[ " ${files[@]} " =~ " ${arg} " ]]; then
+        #     usage_help "$arg is more than once in the arguments"
+        #     exit 1
+        # fi
+        files+=("$arg")
     done
     # foreach file in files
     for item in "${files[@]}"; do
@@ -134,52 +239,43 @@ if [ "$1" ] && [ "$2" ]; then
         if [ -f "$item" ]; then
             # gz
             if [[ "$item" == *.gz ]]; then
-                TEXT_FROM_FILES+=$(gunzip -ck $item)
+                TEXT_FROM_FILES+=$(gunzip -ck "$item")
                 TEXT_FROM_FILES+=$'\n'
                 continue
             fi
             # normal
-            TEXT_FROM_FILES+=$(cat $item)
+            TEXT_FROM_FILES+=$(cat "$item")
             TEXT_FROM_FILES+=$'\n'
             continue
         fi
-        # not a file
-        echo "$item is not a file"
+        usage_help "$item is not a file"
         exit 1
     done
 
     # shift if filter is set
-    if [ "$AFTER" ]; then
-        shift 2
+    case $CMD in
+    list)
+        OUT=$(by_username)
+        ;;
+    list-currency)
+        OUT=$(uniq_currency)
+        ;;
+    status)
+        OUT=$(status)
+        ;;
+    profit)
+        OUT=$(profit)
+        ;;
+    *)
+        OUT=$(by_username)
+        ;;
+    esac
+    if [ "$OUT" ]; then
+        echo "$OUT"
     fi
-    if [ "$BEFORE" ]; then
-        shift 2
-    fi
-    if [ "$CURRENCY" ]; then
-        shift 2
-    fi
-
-    if [ "$1" == "list" ]; then
-        by_username
-        exit 0
-    fi
-    if [ "$1" == "list-currency" ]; then
-        uniq_currency
-        exit 0
-    fi
-    if [ "$1" == "status" ]; then
-        status
-        exit 0
-    fi
-    if [ "$1" == "profit" ]; then
-        profit
-        exit 0
-    fi
-    # default
-    by_username
     exit 0
 fi
 
 # Pokud skript nedostane na vstupu žádný příkaz, uvažujte výchozí příkaz list.
-echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
+usage_help
 exit 0
