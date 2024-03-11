@@ -28,7 +28,41 @@ if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     exit 0
 fi
 #JMENO UZIVATELE;DATUM A CAS;MENA;HODNOTA
-# $1                 $2       $3    $4
+# 0                 1         2    3
+is_input_valid() {
+    # read line by line
+    # read line by line
+    while IFS= read -r line; do
+        # skip empty lines
+        if [ -z "$line" ]; then
+            continue
+        fi
+        # split by ;
+        IFS=';' read -r -a array <<<"$line"
+        # username
+        if [ -z "${array[0]}" ]; then
+            usage_help "Empty username in logs"
+            exit 1
+        fi
+        # check if date is valid
+        check_if_datetime_is_valid "${array[1]}"
+        # check if currency is 3 dig
+        if [ ${#array[2]} != 3 ]; then
+            usage_help "Empty/invalid currency in logs"
+            exit 1
+        fi
+        # is num set
+        if [ ${#array[3]} == 0 ]; then
+            usage_help "Empty value in logs"
+            exit 1
+        fi
+        # check if value is a number
+        if [ "${array[3]}" -eq "${array[3]}" ] 2>/dev/null; then
+            usage_help "Invalid value: ${array[3]}"
+            exit 1
+        fi
+    done <<<"$TEXT_FROM_FILES"
+}
 by_username() {
     # výpis záznamů pro daného uživatele
     echo "$TEXT_FROM_FILES" | awk -F ';' -v USERNAME="$USERNAME" -v AFTER="$AFTER" -v BEFORE="$BEFORE" -v CURRENCY="${CURRENCY[*]}" '
@@ -135,6 +169,10 @@ profit() {
 }
 
 check_if_datetime_is_valid() {
+    if [ -z "$1" ]; then
+        usage_help "the date is empty"
+        exit 1
+    fi
     # check if date is valid in format 2024-01-25 15:29:29
     if ! date -d "$1" "+%Y-%m-%d %H:%M:%S" >/dev/null 2>&1; then
         usage_help "$1 is not a valid date"
@@ -145,10 +183,18 @@ check_if_datetime_is_valid() {
 while getopts "a:b:c:" opt; do
     case $opt in
     a)
+        if [ "$AFTER" ]; then
+            usage_help "-a is used more than once"
+            exit 1
+        fi
         AFTER="$OPTARG"
         check_if_datetime_is_valid "$AFTER"
         ;;
     b)
+        if [ "$BEFORE" ]; then
+            usage_help "-b is used more than once"
+            exit 1
+        fi
         BEFORE="$OPTARG"
         check_if_datetime_is_valid "$BEFORE"
         ;;
@@ -252,7 +298,8 @@ if [ "$1" ] && [ "$2" ]; then
         exit 1
     done
 
-    # shift if filter is set
+    is_input_valid
+    # out
     case $CMD in
     list)
         OUT=$(by_username)
