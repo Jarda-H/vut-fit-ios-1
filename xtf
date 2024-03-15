@@ -1,8 +1,14 @@
 #!/bin/bash
-POSIXLY_CORRECT=yes
+# xhodanj00
+# 2024-03-15
+
+export LC_ALL=C
+export POSIXLY_CORRECT=yes
+
 usage_help() {
     if [ "$1" ]; then
-        echo "$1"
+        echo >&2 "$1"
+        return
     fi
     echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
 }
@@ -324,5 +330,5 @@ if [ "$1" ] && [ "$2" ]; then
 fi
 
 # Pokud skript nedostane na vstupu žádný příkaz, uvažujte výchozí příkaz list.
-usage_help
-exit 0
+usage_help "Wrong arguments"
+exit 1

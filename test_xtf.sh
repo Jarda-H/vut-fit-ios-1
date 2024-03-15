@@ -47,10 +47,7 @@ NORMAL='\033[0m'
 test_count=0
 correct=0
 
-# compile maze.c just in case
-
 rm -rf diff
-
 
 
 run_test() {
@@ -204,13 +201,11 @@ Trader1;2024-01-22 09:17:40;ETH;10.9537" "${args[@]}"
 
 # 15 invalid file with space or 2 usernames
 args=("list-currency" "Trader1" "Trader 2" "cryptoexchange.log")
-run_test "Trader 2 is not a file
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 16 invalid file
 args=("status" "Trader1" "invalid.log")
-run_test "invalid.log is not a file
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 17 no user/
 args=("status" "cryptoexchange.log")
@@ -222,8 +217,7 @@ run_test "" "${args[@]}"
 
 # 19 2 commands
 args=("status" "list" "Trader1" "cryptoexchange.log")
-run_test "Trader1 is not a file
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 20 duplicate files
 # WARNING UNDEFINED BEHAVIOR (logs in files should be in chronological order, the tests shouldn't have this)
@@ -267,7 +261,7 @@ fi
 
 # 22
 args=("cryptoexchange.log")
-run_test "Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 23
 args=("-c" "ETH" "profit" "Trader1" "cryptoexchange.log" "cryptoexchange-2.log.gz")
@@ -294,13 +288,11 @@ run_test "" "${args[@]}"
 
 # 27 invalid date format
 args=("-a" "10-2024-21 15:29:29" "status" "Trader1" "cryptoexchange.log")
-run_test "10-2024-21 15:29:29 is not a valid date
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 28 invalid date format
 args=("-a" "2024-01-21 15:300:29" "-b" "2024-01-21 15:29:29" "status" "Trader1" "cryptoexchange.log")
-run_test "2024-01-21 15:300:29 is not a valid date
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 29 no trimming/rounding re-check needed
 export XTF_PROFIT=0
@@ -354,55 +346,50 @@ USD" "${args[@]}"
 
 # 34 long currency (4 chars)
 args=( "-c" "ABCD" "list" "Trader1" "cryptoexchange.log")
-run_test "ABCD is not a valid currency
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 35 short currency (2 chars)
 args=( "-c" "AB" "list" "Trader1" "cryptoexchange.log")
-run_test "AB is not a valid currency
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 36 2 times -a
 args=("-a" "2024-01-25 15:29:29" "-a" "2024-01-25 16:29:29" "Trader1" "cryptoexchange.log")
-run_test "-a is used more than once
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 37 2 times -b
 args=("-b" "2024-01-25 15:29:29" "-b" "2024-01-25 16:29:29" "Trader1" "cryptoexchange.log")
-run_test "-b is used more than once
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 echo "Testing invalid files"
 
 # 38 invalid date in first entry
 echo -e "Trader1;2024-01-1515:30:42;EUR;-2000.0000\nTrader2;2024-01-15 15:31:12;BTC;-9.8734\nTrader1;2024-01-16 18:06:32;USD;-3000.0000\nCryptoWiz;2024-01-17 08:58:09;CZK;10000.0000\nTrader1;2024-01-20 11:43:02;ETH;1.9417\nTrader1;2024-01-22 09:17:40;ETH;10.9537" > invalid_date.log
 args=("list" "Trader1" "invalid_date.log")
-run_test "2024-01-1515:30:42 is not a valid date
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 39 missing date in first entry
 echo -e "Trader1;;EUR;-2000.0000\nTrader2;2024-01-15 15:31:12;BTC;-9.8734\nTrader1;2024-01-16 18:06:32;USD;-3000.0000\nCryptoWiz;2024-01-17 08:58:09;CZK;10000.0000\nTrader1;2024-01-20 11:43:02;ETH;1.9417\nTrader1;2024-01-22 09:17:40;ETH;10.9537" > invalid_date.log
 args=("list" "Trader1" "invalid_date.log")
-run_test "the date is empty
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 40 missing name in second entry
 echo -e "Trader1;2024-01-15 15:30:42;EUR;-2000.0000\n;2024-01-15 15:31:12;BTC;-9.8734\nTrader1;2024-01-16 18:06:32;USD;-3000.0000\nCryptoWiz;2024-01-17 08:58:09;CZK;10000.0000\nTrader1;2024-01-20 11:43:02;ETH;1.9417\nTrader1;2024-01-22 09:17:40;ETH;10.9537" > missing_name.log
 args=("list" "Trader1" "missing_name.log")
-run_test "Empty username in logs
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 41 missing currency in third entry
 echo -e "Trader1;2024-01-15 15:30:42;EUR;-2000.0000\nTrader2;2024-01-15 15:31:12;BTC;-9.8734\nTrader1;2024-01-16 18:06:32;;-3000.0000\nCryptoWiz;2024-01-17 08:58:09;CZK;10000.0000\nTrader1;2024-01-20 11:43:02;ETH;1.9417\nTrader1;2024-01-22 09:17:40;ETH;10.9537" > missing_currency.log
 args=("list" "Trader1" "missing_currency.log")
-run_test "Empty/invalid currency in logs
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
 
 # 42 missing value in second entry
 echo -e "Trader1;2024-01-15 15:30:42;EUR;-2000.0000\nTrader2;2024-01-15 15:31:12;BTC;\nTrader1;2024-01-16 18:06:32;USD;-3000.0000\nCryptoWiz;2024-01-17 08:58:09;CZK;10000.0000\nTrader1;2024-01-20 11:43:02;ETH;1.9417\nTrader1;2024-01-22 09:17:40;ETH;10.9537" > missing_value.log
 args=("list" "Trader1" "missing_value.log")
-run_test "Empty value in logs
-Usage: ./xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]" "${args[@]}"
+run_test "" "${args[@]}"
+
+# 43 invalid currency code
+args=("-c" "ab1" "Trader1" "cryptoexchange.log")
+run_test "" "${args[@]}"
 
 
 # print test results
