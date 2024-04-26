@@ -1,6 +1,6 @@
 #!/bin/bash
 # xhodanj00
-# 2024-03-15
+# 2024-03-17
 
 export LC_ALL=C
 export POSIXLY_CORRECT=yes
@@ -18,7 +18,7 @@ if [ "$#" == 0 ]; then
     exit 1
 fi
 
-# první arg je -h or --help
+# first arg -h or --help
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     echo "Usage: $0 [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]"
     echo "PŘÍKAZ může být jeden z:"
@@ -36,7 +36,6 @@ fi
 #JMENO UZIVATELE;DATUM A CAS;MENA;HODNOTA
 # 0                 1         2    3
 is_input_valid() {
-    # read line by line
     # read line by line
     while IFS= read -r line; do
         # skip empty lines
@@ -278,11 +277,6 @@ if [ "$1" ] && [ "$2" ]; then
     # for every other argument, set it as a file
     files=()
     for arg in "$@"; do
-        # already in files
-        # if [[ " ${files[@]} " =~ " ${arg} " ]]; then
-        #     usage_help "$arg is more than once in the arguments"
-        #     exit 1
-        # fi
         files+=("$arg")
     done
     # foreach file in files
@@ -329,6 +323,6 @@ if [ "$1" ] && [ "$2" ]; then
     exit 0
 fi
 
-# Pokud skript nedostane na vstupu žádný příkaz, uvažujte výchozí příkaz list.
+# no args
 usage_help "Wrong arguments"
 exit 1
