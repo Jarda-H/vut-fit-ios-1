@@ -1,6 +1,5 @@
 # IOS projekt 1 2023/2024
-
-
+Nedoporčuju se tímto kódem inspirovat. Jsou to špagety.
 # Hodnocení
 ```
 15:celkem bodu za projekt
