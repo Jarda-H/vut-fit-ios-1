@@ -2,6 +2,7 @@
 
 
 # Hodnocení
+```
 15:celkem bodu za projekt
 #-- automaticke hodnoceni -----------------------------
 0:ok: docasne soubory:
@@ -55,3 +56,4 @@
 #------------------------------------------------------
 15:celkove score (max pro hodnoceni 15)
 15:celkem bodu za projekt
+```
